@@ -145,32 +145,3 @@ create table key_word(
 	keyWordList VARCHAR (512),
 	status CHAR(1)
 );
-##########################################这两个表用不到#####################################################################
-drop table mass_message;
-create table mass_message(
-	id INT PRIMARY KEY AUTO_INCREMENT,
-	msgId VARCHAR(30),
-	type VARCHAR(30),
-	appId INT,
-	idOrText VARCHAR(1200),
-	title VARCHAR (512),
-	description VARCHAR (512),
-	groupName VARCHAR(128),
-	groupId VARCHAR(30),
-	createTime DATETIME,
-	status CHAR(1)  
-);
-
-drop table mass_message_result;
-create table mass_message_result(
-	id INT PRIMARY KEY AUTO_INCREMENT,
-	msgId VARCHAR(30),
-	appId INT,
-	status VARCHAR(128),
-	totalCount INT,
-	filterCount INT,
-	sentCount INT,
-	errorCount INT
-);
-
-#############################################这两个表用不到##################################################################
