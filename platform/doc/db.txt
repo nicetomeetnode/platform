@@ -1,0 +1,176 @@
+{
+	host : 'localhost',
+	user : 'lww',
+	password : 'a123',
+	database : 'platform',
+	port : 3306,
+	charset:"utf8mb4"
+}
+
+
+
+
+drop table app_info;
+create table app_info(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	type CHAR(1),
+	appId VARCHAR (50),
+	appSecret VARCHAR (50),
+	token VARCHAR (50),
+	createDate DATETIME,
+	remarks VARCHAR (50),
+	encodingAESKey VARCHAR (50),
+	keyWordFlag CHAR(1),
+	status CHAR(1)
+);
+
+drop table access_token;
+create table access_token(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	appId int,
+	accessToken VARCHAR(512),
+	expiresIn INT,
+	createTime DATETIME,
+	status CHAR(1)
+);
+drop table handle_message_event;
+create table handle_message_event(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	appId int,
+	handleFilePath  VARCHAR(512), ##此处以项目所在路径为根路径
+	handleMethod VARCHAR(128), 
+	createTime DATETIME,
+	status CHAR(1)
+);
+insert into handle_message_event  values("1","1","/src/test/handleTest1.js","testMethod",now(),"1");
+insert into handle_message_event  values("2","2","/src/test/handleTest2.js","testMethod",now(),"1");
+commit;
+
+
+drop table menu;
+create table menu(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	appId INT,
+	name VARCHAR(40),
+	type VARCHAR(30),
+	_key VARCHAR(128),
+	url VARCHAR(1024),
+	parentId INT,
+	createTime DATETIME,
+	status CHAR(1)
+);
+
+
+drop table qr_code;
+create table qr_code(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	appId INT,
+	expireSeconds INT,##该字段为空表示永久二维码，否则为临时二维码
+	actionName CHAR(1),##0表示临时二维码，1表示永久二维码
+	url VARCHAR(512),##获取二维码的链接
+	sceneId INT,##易信中，永久二维码最大值为1000 
+	sceneStr VARCHAR(128),
+	createTime DATETIME
+);
+
+
+drop table source_material;
+create table source_material(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	appId INT,
+	type VARCHAR(10),
+	mediaId VARCHAR(512),
+	tmp CHAR(1),##1表示临时素材，0表示永久素材
+	remarks VARCHAR(512),
+	createTime DATETIME,
+	status CHAR(1)
+);
+
+drop table news;
+create table news(
+    id INT PRIMARY KEY AUTO_INCREMENT,
+	appId INT,
+	title VARCHAR(512),
+	thumbMediaId VARCHAR(512),
+	author VARCHAR(512),##易信公众号无此字段
+	digest VARCHAR(512),
+	showCoverPic CHAR(1),
+	content VARCHAR(512),
+	createTime DATETIME,
+	contentSourceUrl VARCHAR(1024), ##易信公众号rurl和url统一对应到该字段上
+	status CHAR(1)  
+);
+
+drop table user_group;
+create table user_group(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	groupId VARCHAR(20),
+	appId INT,
+	name VARCHAR(100),
+	count INT,
+	createTime DATETIME,
+	status CHAR(1)  
+);
+
+drop table user;
+create table user(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	appId INT,
+	subscribe CHAR(1),##
+	openId VARCHAR(256),##
+	nickName VARCHAR(256),##
+	sex CHAR(1),##
+	city VARCHAR(256),##
+	country VARCHAR(256),
+	province VARCHAR(256), 
+	language VARCHAR(30),##
+	headImgUrl VARCHAR(512),
+	subscribeTime DATETIME,##
+	unionId VARCHAR(256),
+	remark VARCHAR(256),##
+	groupId VARCHAR(256),##和微信返回的tagid_list相统一
+	status CHAR(1)  
+);
+
+drop table key_word;
+create table key_word(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	type VARCHAR(30),
+	appId INT,
+	text VARCHAR (1024),
+	mediaId VARCHAR (512),
+	thumbMediaId VARCHAR (512),
+  	title VARCHAR (512),
+	description VARCHAR (512),
+	keyWordList VARCHAR (512),
+	status CHAR(1)
+);
+##########################################这两个表用不到#####################################################################
+drop table mass_message;
+create table mass_message(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	msgId VARCHAR(30),
+	type VARCHAR(30),
+	appId INT,
+	idOrText VARCHAR(1200),
+	title VARCHAR (512),
+	description VARCHAR (512),
+	groupName VARCHAR(128),
+	groupId VARCHAR(30),
+	createTime DATETIME,
+	status CHAR(1)  
+);
+
+drop table mass_message_result;
+create table mass_message_result(
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	msgId VARCHAR(30),
+	appId INT,
+	status VARCHAR(128),
+	totalCount INT,
+	filterCount INT,
+	sentCount INT,
+	errorCount INT
+);
+
+#############################################这两个表用不到##################################################################

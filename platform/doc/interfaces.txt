@@ -1,0 +1,707 @@
+﻿==============================================access_token_service.js=======================================
+1、module.exports.getAccessToken=function(id)：根据公众号在app_info表中对应的主键id获取公众号有效的access_token
+	入参：id。app_info表中公众号的主键id
+	返回：返回一个access_token表中可用的access_token字符串（该接口中会自动进行更新维护，若想从服务器更新新的access_token，则把access_token表中的该公众号对应的status置为0即可）。发生错误时，根据服务器返回的错误信息抛出异常。
+==============================================app_info_service.js=======================================
+1、module.exports.getAppInfoById=function(id):根据公众号在app_info表中对应的主键id获取公众号对应的信息
+	入参：id。app_info表中公众号的主键id
+	返回：若在app_info表中存在有效的指定主键id的公众号信息，则返回形如
+	{
+	  id: 1,
+	  type: 'w',
+	  appId: 'xxxxxxxxxx',
+	  appSecret: 'xxxxxxxxxxxxxxxxxxxxxx',
+	  token: 'ctidrdc',
+	  createDate: Thu May 05 2016 09:17:22 GMT+0800 (中国标准时间),
+	  remarks: null,
+	  encodingAESKey: null,
+	  status: '1' }
+	的对象，否则返回null。
+2、module.exports.appExist=function(id)：根据指定的id判断该指定id主键的公众号是否存在
+      入参：id。appInfo表中公众号的主键id。
+      返回：若存在，返回true，否则返回false。
+==============================================core_service.js=======================================
+1、module.exports.handle=function(appInfo,getParams,postParams)
+2、module.exports._handle=function(_this)
+	二者方法选其一,这两个方法在core_service_route.js中使用，用来自动调用handle_message_event表中配置的各个公众号相对应的js文件和方法来处理微信易信服务器发来的事件和消息。
+	不同的是，
+	方法1给配置方法所传入的参数为appInfo（该公众号所对应的app_info表中的信息）,getParams（服务器通过get请求传输而来的数据）,postParams（服务器通过post请求传输过来的数据），
+	方法2给配置方法所传入的是当接收到请求时候core_service_route中的Koa Context对象，不过切勿调用该context的response对象，其他的信息均可从context对象中的request和appInfo（作者所增，表示该公众号所对应的app_info表中的信息）等属性获取。（参考koa2 的context对象）
+	对服务器进行响应，而应该调用相应的其他接口（如客服接口）来对服务器进行响应。 
+	而配置的处理微信易信服务器发送来的事件和消息js文件和方法可以自由编写逻辑，具体事件和消息内容，参考 对应公众平台的开发者文档。
+	数据库配置，例如：
+	id	appId		handleFilePath		handleMethod	createTime		status
+	1	1	/src/test/handleTest1.js	testMethod2	2016-05-09 09:26:01	1
+	2	2	/src/test/handleTest2.js	testMethod	2016-05-09 09:26:01	1	
+==============================================menu_service.js=======================================
+1、module.exports.create=function(id)：根据公众号主键id在menu表中的菜单配置进行菜单生成
+	入参：id。app_info表中公众号的主键id
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+2、module.exports.get=function(appId)：从服务器获取最新的菜单信息，并且更新到数据库中，然后返回菜单json对象。
+	入参：id。app_info表中公众号的主键id
+	返回：
+	2.1、正常情况下：
+		{"button":[{"name":"今日歌曲","type":"click","key":"V1001_TODAY_MUSIC"},{"name":"菜单","sub_button":[{"name":"搜索","type":"view","url":"http://www.soso.com/"},{"name":"视频","type":"view","url":"http://v.qq.com/"},{"name":"赞一下我们","type":"click","key":"V1001_GOOD"}]}]}
+	2.2、不存在menu时候，返回
+		{"button":[]}。
+	2.3、发生错误时，根据服务器返回的错误信息抛出异常。
+3、module.exports.remove=function(appId):删除公众号的菜单（服务器和menu表）
+	入参：id。app_info表中公众号的主键id
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+==============================================platform_access_service.js=======================================
+1、module.exports.checkSignature=function (type,token,timestamp,nonce,signature)：验证消息的确来自微信服务器。
+	入参：
+		type	公众号类型。易信公众号为"y",微信公众号为"w"
+		token	公众号所对应的token。
+		signature	微信加密签名，signature结合了开发者填写的token参数和请求中的timestamp参数、nonce参数。
+		timestamp	时间戳
+		nonce	随机数
+	返回：
+		验证成功，返回true。
+		否则，返回false。
+==============================================qr_code_service.js=======================================
+	//虽然获取二维码时候传入的是字符串类型的scene_str来标志一个二维码，但是由于易信只支持通过scene_id的形式来获取二维码，因此在此处进行如下处理：
+	//1、接收到scene_str后，取出qr_code表中该公众号所对应的最大scene_id，然后自增后和scene_str一一对应保存入qr_code表中
+	//2、通过和该scene_str对应的scene_id来访问服务器生成相应的二维码
+	//因此在处理二维码事件时，只处理QR_SCENE和QR_LIMIT_SCENE类型的二维码，通过结合qr_code表来取得该scene_id所对应的scene_str
+	//对于方法1和方法2，若在生成临时二维码时同一公众号下已存在该scene_str所对应的二维码信息，则会对该二维码进行覆盖生成。若在生成永久二维码时同一公众号下已存在该scene_str所对应的二维码信息，则直接返回原二维码信息。
+	//对于方法3，若在生成永久二维码时同一公众号下已存在该scene_str所对应的二维码信息，则会抛出异常，异常内容为
+	//		new Error("创建失败，该公众号已存在scene_str为 "+scene_str+" 的二维码，且该二维码所对应的appId为 "+r.sceneId)
+	//不会出现同一公众号下同一关键字对应两个不同二维码，且这两个二维码同时为永久或同时为临时的，但允许对应同一scene_str字符串的一永久和一临时二维码同时存在
+	//生成二维码过程中，因为考虑到高并发的问题，会对scene_id的生成造成影响，进而会产生同样的scene_id，而又要求本地库中scene_str和微信易信服务器的scene_id一一对应，故设计逻辑如下。
+	//以下两句sql是实现的关键
+	//保证取到的sceneId是唯一的
+	//insert into qr_code (appId,expireSeconds,actionName,url,sceneStr,createTime,sceneId) values(?,?,?,?,?,now(),(select ifnull(max(sceneId), 0) + 1 from qr_code t2 where t2.appId = ? and t2.actionName = ?))
+	//保证同一sceneStr对应同一的sceneId(此处以永久二维码sql为例)
+	//update qr_code  set expireSeconds=-1,sceneId=-1 where id in(select a.id from (select id from qr_code where actionName=? and sceneStr=? and appId=?  and expireSeconds is null and id not in(select min(id) from qr_code  where actionName=? and sceneStr=? and appId=?  and expireSeconds is null) )a)
+	//现插入，再查询，因此可以保证本地库中scene_str和微信易信服务器的scene_id一一对应
+	//createOrCoverForever(appId,scene_str,scene_id)用于创建指定scene_str,scene_id的永久二维码，若该公众号下已存在scene_str所对应的永久二维码，则创建失败。
+
+1、module.exports.createTmp=function(appId,scene_str,expire_seconds)：根据传入的scene_str字符串和appId，创建对应的有效时间为expire_seconds秒的临时二维码。
+	入参：
+		appId：app_info表中公众号的主键id
+		scene_str:用于识别该二维码的唯一字符串参数。
+		expire_seconds：临时二维码的有效秒数。易信最大值为1800，微信最大值为2592000。默认值为最大值。
+	返回：
+		正常情况下
+		{ url: 'https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=gQFJ8DoAAAAAAAAAASxodHRwOi8aaaVpeGluLnFxLmkhhjkjhNvbS9xL0owbTNHQy1seDNPX1VrOVptMmR0AAIEGk85VwME6AMAAA==',
+  expire_seconds: 1000 }
+  		错误情况下根据服务器返回的错误信息抛出异常。
+2、module.exports.createForever=function(appId,scene_str)：根据传入的scene_str字符串和appId，创建对应的永久二维码。
+	入参：
+		appId：app_info表中公众号的主键id
+		scene_str:用于识别该二维码的唯一字符串参数。
+	返回：
+		正常情况下
+		{ url: 'https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=gQHl8DoAAAAAAAAAASxodbbhjkhkwOi8vd2VpeGluLnFxLmNvbS9xL3lrbjM2kjhkhjkhMVRsaVhQd05hQ2syMlZ0AAIEks8yVgMEAAAAAA==' }
+		错误情况下根据服务器返回的错误信息抛出异常。
+3、module.exports.createOrCoverForever=function(appId,scene_str,scene_id)：：根据传入的scene_str字符串和appId，创建或者覆盖对应scene_id的永久二维码。（当数据库维护的scene_id超过服务器的规定时候，可使用该方法进行指定符合要求的scene_id来创建二维码）
+	入参：
+		appId：app_info表中公众号的主键id
+		scene_str:用于识别该二维码的唯一字符串参数。
+		scene_id：指定该生成的二维码的sceneId为scene_id。
+	返回：
+		正常情况下
+		{ url: 'https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=gQHM7zoAAAAAAAAAAsssdHRwOi8vd2VpeGluLnFxLmNhjkjhkjhkvbS9xL0xFbUc0aHZsOEhPSmxVYWxxbVZ0AAIE11QtVwMEAAAAAA==' }
+		错误情况下根据服务器返回的错误信息抛出异常。
+==============================================send_data_to_user_service.js=======================================
+1、module.exports.text=function(appId,touser,content)：发送文本内容给指定用户
+	入参：
+		appId：app_info表中公众号的主键id
+		touser：接收用户所对应的openId。
+		content：发送的文本内容
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+		
+2、module.exports.image=function(appId,touser,media_id)：发送图片给指定用户。
+	入参：
+		appId：app_info表中公众号的主键id
+		touser：接收用户所对应的openId。
+		media_id：图片所对应的media_id。（通过上传接口上传成功后可获得）
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+	
+3、module.exports.voice=function(appId,touser,media_id)：发送语音给指定用户。
+	入参：
+		appId：app_info表中公众号的主键id
+		touser：接收用户所对应的openId。
+		media_id：语音所对应的media_id。（通过上传接口上传成功后可获得）
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+	
+4、module.exports.video_yx=function(appId,touser,media_id)：易信发送视频给指定用户
+	入参：
+		appId：app_info表中公众号的主键id
+		touser：接收用户所对应的openId。
+		media_id：视频所对应的media_id。（通过上传接口上传成功后可获得）
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+5、module.exports.video_wx=function(appId,touser,media_id,thumb_media_id,title,description)：微信发送视频给指定用户
+	入参：
+		appId：app_info表中公众号的主键id
+		touser：接收用户所对应的openId。
+		media_id：视频所对应的media_id。（通过上传接口上传成功后可获得）
+		thumb_media_id：缩略图的media_id
+		title：标题（非必须）
+		description：描述（非必须）
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+6、module.exports.link_yx=function(appId,touser,title,url)：易信发送链接消息给指定用户
+	入参：
+		appId：app_info表中公众号的主键id
+		touser：接收用户所对应的openId。
+		title：标题
+		url：点击链接跳转地址 （非必须）
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+7、module.exports.news=function(appId,touser,articles)：发送图文消息给指定用户
+	入参：
+		appId：app_info表中公众号的主键id
+		touser：接收用户所对应的openId。
+		articles：图文数组，微信类似
+				 [{
+				       "title": TITLE,
+				       "thumb_media_id": THUMB_MEDIA_ID,
+				       "author": AUTHOR,
+				       "digest": DIGEST,
+				       "show_cover_pic": SHOW_COVER_PIC(0 / 1),
+				       "content": CONTENT,
+				       "content_source_url": CONTENT_SOURCE_URL
+				    },
+				    //若新增的是多图文素材，则此处应还有几段articles结构
+				 ]
+				 易信类似
+				  	[
+			           {
+			              "title": "Happy Day", 
+			              "description": "Is Really A Happy Day", 
+			              "url": "URL", 
+			              "picurl": "PIC_URL"
+			           },
+				    //若新增的是多图文素材，则此处应还有几段articles结构
+			       ]
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+8、module.exports.massText_yx=function(appId,content,groupName)：易信群发文本信息
+	入参：
+		appId：app_info表中公众号的主键id
+		content：要发送的文本内容
+		groupName：要发送的用户组的名称（若无，则全体发送）
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+		
+9、module.exports.massNews_yx=function(appId,articles,groupName)：易信群发图文信息（根据图文内容）
+	入参：
+		appId：app_info表中公众号的主键id
+		articles：要发送的图文内容组成的数组，形如：
+				[
+		           {
+		               "title": "Happy Day", 
+		               "description": "Is Really A Happy Day", 
+		               "url": "URL", 
+		               "picurl": "PIC_URL"
+		           },
+		           {
+		               "title": "Happy Day", 
+		               "description": "Is Really A Happy Day", 
+		               "url": "URL", 
+		               "picurl": "PIC_URL"
+		           },
+		           //...
+		       ]
+		groupName：要发送的用户组的名称（若无，则全体发送）
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+10、module.exports.massOthers_yx=function(appId,type,materialId,groupName):易信群发其他内容（可用materialId表示的）
+	入参：
+		appId：app_info表中公众号的主键id
+		type:card,news,voice,image,video
+		materialId：素材ID 
+		groupName：要发送的用户组的名称（若无，则全体发送）
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+		
+11、module.exports.mass_wx=function(obj):微信根据tagId群发消息
+	入参：
+		一个obj对象，必须有如下属性：
+		{
+			"appId":"xxxx"
+			"type":图文消息为mpnews，文本消息为text，语音为voice，音乐为music，图片为image，视频为video，卡券为wxcard
+			"idOrText":媒体ID或者文本消息的内容
+			"title"：消息的标题（视频类型才需要）
+			"description"：消息的描述（视频类型才需要）
+			"isToAll"：用于设定是否向全部用户发送，值为true或false，选择true该消息群发给所有用户，选择false可根据tag_id发送给指定群组的用户
+			"tagId"：群发到的标签的tag_id，参加用户管理中用户分组接口，若is_to_all值为true，可不填写tag_id
+		}
+	返回：若生成成功，则返回
+		{
+		   "errcode":0,
+		   "errmsg":"send job submission success",
+		   "msg_id":34182, 
+		   "msg_data_id": 206227730
+		}
+		否则，根据服务器返回的错误信息抛出异常。
+12、module.exports.mass2_wx=function(obj)：微信根据openIds群发消息
+	入参：
+		一个obj对象，必须有如下属性：
+		{
+			"appId":"xxxx"
+			"type":图文消息为mpnews，文本消息为text，语音为voice，音乐为music，图片为image，视频为video，卡券为wxcard
+			"idOrText":媒体ID或者文本消息的内容
+			"title"：消息的标题（视频类型才需要）
+			"description"：消息的描述（视频类型才需要）
+			"touser":用户openId组成的数组
+		}
+	返回：若生成成功，则返回
+		{
+		   "errcode":0,
+		   "errmsg":"send job submission success",
+		   "msg_id":34182, 
+		   "msg_data_id": 206227730
+		}
+		否则，根据服务器返回的错误信息抛出异常。
+13、module.exports.remove_mass_wx=function(appId,msgId)：微信根据msgId删除群发消息
+	入参：
+		appId：app_info表中公众号的主键id
+		msgId：消息Id
+	返回：若生成成功，则返回"success"字符串。否则，根据服务器返回的错误信息抛出异常。
+		
+14、module.exports.preview_mass_wx=function(obj)：微信群发消息预览接口
+	入参：
+		一个obj对象，必须有如下属性：
+		{
+			"appId":"xxxx"
+			"type":图文消息为mpnews，文本消息为text，语音为voice，音乐为music，图片为image，视频为video，卡券为wxcard
+			"idOrText":媒体ID或者文本消息的内容
+			"title"：消息的标题（视频类型才需要）
+			"description"：消息的描述（视频类型才需要）
+			"touser":用户openId
+		}
+	返回：若生成成功，则返回
+		{
+		   "errcode":0,
+		   "errmsg":"send job submission success",
+		   "msg_id":34182, 
+		   "msg_data_id": 206227730
+		}
+		否则，根据服务器返回的错误信息抛出异常。
+15、module.exports.status_mass_wx=function(appId,msgId)：微信查询群发消息发送状态
+	入参：
+		appId：app_info表中公众号的主键id
+		msgId：消息Id
+	返回：若生成成功，则返回
+		{
+		     "msg_id":201053012,
+		     "msg_status":"SEND_SUCCESS"
+		}
+		否则，根据服务器返回的错误信息抛出异常。
+16、module.exports.result_mass_wx=function(appId,msgId,status,totalCount,filterCount,sentCount,errorCount)：微信处理事件推送群发结果，该接口还未实现，具体业务逻辑可根据实际情况实现,然后在自定义的消息处理类的方法中调用即可。
+	入参：
+		appId：app_info表中公众号的主键id
+		msgId：消息Id
+		status：群发的结构，为“send success”或“send fail”或“err(num)”。但send success时，也有可能因用户拒收公众号的消息、系统错误等原因造成少量用户接收失败。err(num)是审核失败的具体原因，可能的情况如下：err(10001), //涉嫌广告 err(20001), //涉嫌政治 err(20004), //涉嫌社会 err(20002), //涉嫌色情 err(20006), //涉嫌违法犯罪 err(20008), //涉嫌欺诈 err(20013), //涉嫌版权 err(22000), //涉嫌互推(互相宣传) err(21000), //涉嫌其他
+		totalCount	tag_id下粉丝数；或者openid_list中的粉丝数
+		filterCount	过滤（过滤是指特定地区、性别的过滤、用户设置拒收的过滤，用户接收已超4条的过滤）后，准备发送的粉丝数，原则上，FilterCount = SentCount + ErrorCount
+		sentCount	发送成功的粉丝数
+		errorCount	发送失败的粉丝数
+==============================================source_material_service.js=======================================
+1、module.exports.listFromServer_yx=function(appId,type)：易信获取素材列表接口（最多返回该类型的最近100条记录）
+	入参：
+		appId：app_info表中公众号的主键id
+		type：素材类型，有 图文(news)，图片(image)，语音(voice)，视频(video)，活动(activity) 
+	返回：正常情况
+		{
+		   "materials": [{
+		       "id": 789001,
+		       "type": "image",
+		       "createTime": 1398235130
+		   },
+		   {
+		       "id": 784001,
+		       "type": "image",
+		       "createTime": 1398231115
+		   }]
+		}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+2、module.exports.listFromServer_wx=function listFromServer_wx(appId,type,offset,count):微信获取素材列表接口
+	入参：
+		appId：app_info表中公众号的主键id
+		type:素材的类型，图片（image）、视频（video）、语音 （voice）、图文（news）
+		offset:从全部素材的该偏移位置开始返回，0表示从第一个素材 返回	
+		count:返回素材的数量，取值在1到20之间
+	返回：正常情况
+		永久图文消息素材列表的响应如下：
+			{
+			  "total_count": TOTAL_COUNT,
+			  "item_count": ITEM_COUNT,
+			  "item": [{
+			      "media_id": MEDIA_ID,
+			      "content": {
+			          "news_item": [{
+			              "title": TITLE,
+			              "thumb_media_id": THUMB_MEDIA_ID,
+			              "show_cover_pic": SHOW_COVER_PIC(0 / 1),
+			              "author": AUTHOR,
+			              "digest": DIGEST,
+			              "content": CONTENT,
+			              "url": URL,
+			              "content_source_url": CONTETN_SOURCE_URL
+			          },
+			          //多图文消息会在此处有多篇文章
+			          ]
+			       },
+			       "update_time": UPDATE_TIME
+			   },
+			   //可能有多个图文消息item结构
+			 ]
+			}
+		其他类型（图片、语音、视频）的返回如下：
+			{
+			  "total_count": TOTAL_COUNT,
+			  "item_count": ITEM_COUNT,
+			  "item": [{
+			      "media_id": MEDIA_ID,
+			      "name": NAME,
+			      "update_time": UPDATE_TIME,
+			      "url":URL
+			  },
+			  //可能会有多个素材
+			  ]
+			}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+3、module.exports.uploadTmp=function(appId,path,type,remarks)：上传临时素材。
+	入参：
+		appId：app_info表中公众号的主键id.
+		path：为上传文件的路径。相对于该项目的根路径/。
+		type：媒体文件类型，分别有图片（image）、语音（voice）、视频（video）和缩略图（thumb）。thumb微信支持，易信不支持
+		remarks：对该临时素材的描述。
+	返回：正常情况
+		{"type":"TYPE","media_id":"MEDIA_ID","created_at":123456789}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+4、module.exports.uploadForeverNews=function(appId,newsIdArr,newsRemarks)：上传永久的图文素材
+	入参：
+		appId：app_info表中公众号的主键id
+		newsIdArr：news表中相应图文的主键id所组成的数组。
+		newsRemarks：该图文素材的描述
+	返回：正常情况
+		{"media_id":"MEDIA_ID"}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+5、module.exports.remove=function(appId,mediaId)：删除永久素材
+	入参：
+		appId：app_info表中公众号的主键id
+		mediaId:要删除的素材所对应的media_id
+	返回：正常情况,返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+	
+6、module.exports.uploadForeverImage_wx=function(appId,path,remarks)：微信上传永久图片素材
+	入参：
+		appId：app_info表中公众号的主键id
+		path：为上传文件的路径。相对于该项目的根路径/。
+		remarks:素材描述。
+	返回：正常情况
+		{
+		 "media_id":MEDIA_ID,
+		 "url":URL
+		}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+7、module.exports.uploadForeverVoice_wx=function(appId,path,remarks)：微信上传永久语音素材
+	入参：
+		appId：app_info表中公众号的主键id
+		path：为上传文件的路径。相对于该项目的根路径/。
+		remarks:素材描述。
+	返回：正常情况
+		{
+		 "media_id":MEDIA_ID,
+		}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+8、module.exports.uploadForeverVideo_wx=function(appId,path,title,introduction)：微信上传永久视频素材
+	入参：
+		appId：app_info表中公众号的主键id
+		path：为上传文件的路径。相对于该项目的根路径/。
+		remarks:素材描述。
+	返回：正常情况
+		{
+		 "media_id":MEDIA_ID,
+		}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+9、module.exports.uploadForeverThumb_wx=function(appId,path,remarks)：微信上传永久缩略图素材
+	入参：
+		appId：app_info表中公众号的主键id
+		path：为上传文件的路径。相对于该项目的根路径/。
+		remarks:素材描述。
+	返回：正常情况
+		{
+		 "media_id":MEDIA_ID,
+		}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+10、module.exports.getNewsByVagueTitle=function(appId,title)：根据指定的title内容进行模糊匹配，获取本地news表中相关的图文信息。
+	入参：
+		appId：app_info表中公众号的主键id
+		title：指定title内容
+	返回：正常情况
+		满足要求的news所组成的数组。例如
+		[ {
+		    id: 1,
+		    appId: 1,
+		    title: '我是title1',
+		    thumbMediaId: 'tTPaNyEnl3vIkQY6uGcOPHczv_p3E-GjtqMTSZgm1rY',
+		    author: '张三',
+		    digest: '我是摘要1',
+		    showCoverPic: '1',
+		    content: '我是内容我是内容我是内容我是内容',
+		    createTime: Mon May 09 2016 14:30:03 GMT+0800 (中国标准时间),
+		    contentSourceUrl: 'www.baidu.com',
+		    status: '1' },
+		 {
+		    id: 2,
+		    appId: 1,
+		    title: '我是title2',
+		    thumbMediaId: 'tTPaNyEnl3vIkQY6uGcOPCU19u3a0dBSQFr7tzWXy68',
+		    author: '李四',
+		    digest: '我是摘要2',
+		    showCoverPic: '1',
+		    content: '我是内容我是内容我是内容我是内容',
+		    createTime: Mon May 09 2016 14:31:42 GMT+0800 (中国标准时间),
+		    contentSourceUrl: 'www.qq.com',
+		    status: '1' }
+		  ]
+			若发生错误，则根据服务器返回的错误信息抛出异常。	
+11、module.exports.getSourceMaterialByVagueRemarksAndType=function(appId,remarks,type)：根据指定的remarks内容进行模糊匹配，获取本地source_material表中相关的素材信息。
+	入参：
+		appId：app_info表中公众号的主键id
+		type：指定的类型
+		remarks：指定的描述内容
+	返回：正常情况
+		满足要求的source_material所组成的数组。例如
+		[
+		 {
+		    id: 70,
+		    appId: 1,
+		    type: 'image',
+		    mediaId: 'pVSi22omHbX38uc4Bcwed5ZtRGUQsSd67Uwe1DTZKOM',
+		    tmp: '0',
+		    remarks: '',
+		    createTime: Thu May 12 2016 12:03:33 GMT+0800 (中国标准时间),
+		    status: '1' },
+		 {
+		    id: 71,
+		    appId: 1,
+		    type: 'image',
+		    mediaId: 'zbR9cfdXI7zb9jzXM6pWoXUDrB3wdVUBRNOB4QBQYhA',
+		    tmp: '0',
+		    remarks: '',
+		    createTime: Thu May 12 2016 12:03:33 GMT+0800 (中国标准时间),
+		    status: '1' } ]
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+12、module.exports.getSourceMaterialCount_wx=function getSourceMaterialCount_wx(appId)：微信获取各类素材的总数量
+	入参：
+		appId：app_info表中公众号的主键id
+	返回：正常情况
+			{
+			 "voice_count":COUNT,
+			 "video_count":COUNT,
+			 "image_count":COUNT,
+			 "news_count":COUNT
+			}
+			若发生错误，则根据服务器返回的错误信息抛出异常。
+13、module.exports.checkServerLocalSame_wx=function(appId, type)：同步微信服务器素材信息到本地source_material表。慎重调用该接口，同步过后的资源数据不具备remarks备注内容，需手动修改添加。
+	入参：
+		appId：app_info表中公众号的主键id.
+		type:需要同步的素材的类型。
+	返回：正常情况，返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+==============================================user_service.js=======================================
+1、module.exports.createGroup=function(appId,groupName)：创建新的用户组。
+	入参：
+		appId：app_info表中公众号的主键id.
+		groupName:用户组名称
+	返回：正常情况，返回
+		{"group":{"id":groupId,"name":groupName}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+2、module.exports.getGroups=function(appId)：获取该公众号所存在的用户组（此处不会自动去同步服务器上的分组情况，而是直接返回本地user_group中的分组信息）
+	入参：
+		appId：app_info表中公众号的主键id.
+	返回：正常情况，返回
+		[{ groupId: '1', name: '黑名单' },  { groupId: '2', name: '星标组' } ]
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+3、module.exports.checkServerLocalGroupsSame=function(appId)：同步服务器的用户组信息到本地的user_group表中
+	入参：
+		appId：app_info表中公众号的主键id.
+	返回：正常情况，返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+4、module.exports.updateGroup=function(appId,groupId,groupName)：更新用户组名字
+	入参：
+		appId：app_info表中公众号的主键id.
+		groupId:要修改的用户租的groupId
+		groupName：用户组新名称
+	返回：正常情况，返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+5、module.exports.moveUser2Group_yx=function(appId,openId,groupId)：易信移动用户到指定的用户组
+	入参：
+		appId：app_info表中公众号的主键id.
+		openId：用户所对应的openId
+		groupId:要修改的用户租的groupId
+	返回：正常情况，返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+6、module.exports.moveUser2Group_wx=function(appId,openidList,groupId)：微信批量移动用户到指定的用户组
+	入参：
+		appId：app_info表中公众号的主键id.
+		openidList：用户所对应的openId组成的数组
+		groupId:要修改的用户租的groupId
+	返回：正常情况，返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+7、module.exports.getUserGroup=function(appId,openId)：获取指定用户所在的用户组的groupId（本地表中未找到时会自动去服务器获取）
+	入参：
+		appId：app_info表中公众号的主键id.
+		openId：用户所对应的openId
+	返回：正常情况，返回groupId，若指定错误地openId，则抛出异常new Error("未找到关注该公众号且openid为"+openId+"的用户");
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+8、module.exports.removeGroup_wx=function(appId,groupId)：微信删除指定用户组
+	入参：
+		appId：app_info表中公众号的主键id.
+		groupId：用户组所对应的groupId
+	返回：正常情况，返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+
+9、module.exports.removeUsersFromGroup_wx=function(appId,groupId,openIds)：微信批量将用户移出指定的用户组
+	入参：
+		appId：app_info表中公众号的主键id.
+		groupId：用户组所对应的groupId
+		openIds：用户openId所组成的数组。
+	返回：正常情况，返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+10、module.exports.getUserInfo=function(appId,openId)：获取用户的基本信息（先查本地user表，若无，则去服务器查询，然后插入本地表中再返回）
+	入参：
+		appId：app_info表中公众号的主键id.
+		openId：用户openId
+	返回：正常情况，微信返回
+		{
+		   "subscribe": 1,
+		   "openid": "o6_bmjrPTlm6_2sgVt7hMZOPfL2M",
+		   "nickname": "Band",
+		   "sex": 1,
+		   "language": "zh_CN",
+		   "city": "广州",
+		   "province": "广东",
+		   "country": "中国",
+		
+		   "headimgurl":  "http://wx.qlogo.cn/mmopen/g3MonUZtNHkdmzicIlibx6iaFqAc56vxkhjkLSUfpb6n5WKShkhjkhkhkYVY0ChQKkiaJSgQ1dZuTOgvLLrhJbERQQ4
+		
+		eMsv84eavHiaiceqxibJxCfHe/0",
+		  "subscribe_time": 1382694957,
+		  "unionid": " o6_bmasdasdsad6_2sgVt7hMZOPfL"
+		  "remark": "",
+		
+		  "groupid": 0,
+		
+		  "tagid_list":[128,2]
+		}
+		易信返回
+		{
+		   "subscribe": 1, 
+		   "openid": "OPENID", 
+		   "nickname": "NICKNAME", 
+		   "sex": "sex", 
+		   "language": "LANG", 
+		   "city": "CITY",
+		   "subscribe_time": "TIME",
+		   "remark": "REMARK",
+		   "groupid":"GROUPID"
+		}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+11、module.exports.getUserList=function getUserList(appId,nextOpenId)：获取关注用户openid列表
+	入参：
+		appId：app_info表中公众号的主键id.
+		nextOpenId：拉取列表的后一个用户的OPENID 
+	返回：正常情况
+		{
+			 "total":23000,
+			 "count":10000,
+			 "data":{"
+			    openid":[
+			       "OPENID1",
+			       "OPENID2",
+			       ...,
+			       "OPENID10000"
+			    ]
+			  },
+			  "next_openid":"OPENID10000"
+			}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+12、module.exports.purviewCreate_yx=function(appId,mobiles,remarks)：易信新建用户关注权限
+	入参：
+		appId：app_info表中公众号的主键id.
+		mobiles： 	用户手机号码 数组[xxxx,xxxx,xxxx,xxxx]
+		remarks： 	备注名 数组（和mobiles一一对应）['remark1','remark2','remark3','']
+	返回：正常情况,返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+13、module.exports.purviewUpdate_yx=function(appId,mobiles,remarks)：易信更新用户关注权限
+	入参：
+		appId：app_info表中公众号的主键id.
+		mobiles： 	用户手机号码 数组[xxxx,xxxx,xxxx,xxxx]
+		remarks： 	备注名 数组（和mobiles一一对应）['remark1','remark2','remark3','']
+	返回：正常情况,返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+14、module.exports.purviewRemove_yx=function(appId,mobiles)：易信删除用户关注权限
+	入参：
+		appId：app_info表中公众号的主键id.
+		mobiles： 	用户手机号码 数组[xxxx,xxxx,xxxx,xxxx]
+	返回：正常情况,返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+15、module.exports.getUsersInfo_wx=function(appId,openIds)：微信批量获取用户的基本信息
+	入参：
+		appId：app_info表中公众号的主键id.
+	返回：正常情况
+		{
+		  "user_info_list": [
+		      {
+		          "subscribe": 1,
+		          "openid": "otvxTs4dckWG7imySrJd6jSi0CWE",
+		          "nickname": "iWithery",
+		          "sex": 1,
+		          "language": "zh_CN",
+		          "city": "Jieyang",
+		          "province": "Guangdong",
+		          "country": "China",
+		
+		          "headimgurl": "http://wx.qlogo.cn/mmopen/xbIQx1GRqdvyqkMMhEaGOX802l1CyqMJNgUzKP8MekhkhjkjhkAeHFicRDSnZH7FY4XB7p8XHXIf6uJA2SCun
+		
+		TPicGKezDC4saKISzRj3nz/0",
+		          "subscribe_time": 1434093047,
+		          "unionid": "oR5GjjgEhCMJFyzaVZdrxZ2zRRF4",
+		          "remark": "",
+		
+		          "groupid": 0,
+		
+		          "tagid_list":[128,2]
+		      },
+		      {
+		          "subscribe": 0,
+		          "openid": "otvxTs_JZ6SEiP0imdhpi50fuSZg",
+		          "unionid": "oR5GjjjrbqBZbrnPwwmSxFukE41U",
+		      }
+		  ]
+		}
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+16、module.exports.checkUserServerLocalSame=function(appId)：同步服务器的全部用户基本信息到本地user表中。
+	入参：
+		appId：app_info表中公众号的主键id.
+	返回：正常情况，返回"success"字符串
+		若发生错误，则根据服务器返回的错误信息抛出异常。
+==============================================dao_mysql.js=======================================
+1、module.exports.execSqls = function(sqls, paramsArr):在同一个transaction中执行一系列sql语句
+	入参：sqls，表示要执行的一系列sql语句，paramsArr表示sql语句所需要的参数。
+		let sqls=[sql1,sql2];
+		let paramsArr=[[sql1Params],[sql2params]];
+		execSqls(sqls,paramsArr);
+	返回：返回一个数组对象，数组元素依次表示执行每个sql的结果。即类似方法2所得结果组成的数组。
+2、module.exports.execSql = function(sql, params):执行sql语句,并返回执行sql的结果
+	入参：sql，表示要执行的sql语句，params表示执行该条sql语句所需要的参数。
+	返回：返回执行sql后所获得的结果。
+		eg1、执行insert语句后所返回的对象
+		{
+		  fieldCount: 0,
+		  affectedRows: 1,
+		  insertId: 0,
+		  serverStatus: 2,
+		  warningCount: 0,
+		  message: '',
+		  protocol41: true,
+		  changedRows: 0 }
+		 eg2、执行select后所返回的对象
+		 [{ id: '1', name: 'tom' },{ id: '2', name: 'jerry' } ]
+==============================================key_word_service.js=======================================
+1、module.exports.handle=function(_this)：处理关键字回复
+	入参：_this。Koa Context对象
+	根据key_word表和app_info表（keyWordFlag字段）中的配置，若遇到用户输入的为定义的关键字，则自动给用户回复配置在key_word表中的相应内容。该方法在core_service_route.js中调用
+	目前支持text，image，voice，video，news的自动回复
